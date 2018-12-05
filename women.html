@@ -1,0 +1,426 @@
+<!DOCTYPE HTML>
+<html>
+	<head>
+		<script type="text/javascript" src="https://cdn.trylive.com/static_files/jquery.min.js"></script>
+		<script type="text/javascript" src="https://saas.trylive.com/public_api/html5/trylive_client.js"></script>
+		<script type="text/javascript" src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+		<script type="text/javascript" src="js/app.js"></script>
+		<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+		<link rel="stylesheet" type="text/css" href="./css/player.css">
+		<link rel="stylesheet" href="css/layout2.css">	
+		<link rel="stylesheet" href="css/style.css">
+		<link href="https://fonts.googleapis.com/css?family=Lato:300" rel="stylesheet">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<style>
+			.trylive {
+				width: 720px;
+				height: 1280px;
+			}
+		</style>
+		<script type="text/javascript">
+		function wait(iMilliSeconds) {
+			var counter= 0
+				, start = new Date().getTime()
+				, end = 0;
+			while (counter < iMilliSeconds) {
+				end = new Date().getTime();
+				counter = end - start;
+			}
+		}
+		var b_android = (/Android|BlackBerry/i.test(navigator.userAgent) );
+		var b_iOS11 = false;
+		function isPlatformCompatibleWithFeature(strFeature){
+			if (/iP(hone|od|ad)/.test(navigator.platform)) {
+				var v = (navigator.appVersion).match(/OS (\d+)_(\d+)_?(\d+)?/);
+				if(parseInt(v[1], 10)>10){
+					//iOS11
+					b_iOS11 = true;
+					return true;
+				}
+				else{
+					// <iOS11
+					if(strFeature=="live" || strFeature=="video" || strFeature=="pupillary distance" || strFeature=="record")
+						return false;
+					else
+						return true;	//photo or viewer
+				}
+			}
+			return true;
+		}
+		var isSecureOrigin = location.protocol === 'https:';
+		if (!isSecureOrigin) {
+		  location.protocol = 'HTTPS';
+		}
+		
+		jQuery(document).ready(function () {
+			setLanguage();
+			setBackground();
+			initializeTryLive();
+		});
+
+		function setLanguage(){
+			var url = new URL(window.location.href);
+			var gender = url.searchParams.get("lang");
+			if(gender == "fr"){
+				document.getElementById("header_text").innerHTML = "lunettes cool pour vous";
+			}
+			else{
+				document.getElementById("header_text").innerHTML = "Cooleyeglasses for you";
+			}
+		}
+
+		function setBackground(){
+			var url = new URL(window.location.href);
+			var gender = url.searchParams.get("gender");
+			if(gender == "female"){
+				document.getElementById("portrait").src = "img/portrait2.jpg";
+			}
+			else{
+				document.getElementById("portrait").src = "img/Cool-women-2000.jpg";
+			}
+		}
+
+		var current_asset = 'none';
+		function initializeTryLive(){
+			if(isPlatformCompatibleWithFeature("live")){
+				jQuery_trylive = $.noConflict(true);
+				displayLoading();
+				TryLive.initialize('myVTO', {
+					catalogName: 'women',  //<!-- catalogName: 'kryssms', 
+					defaultAsset: current_asset,
+					defaultMode: {mode: 'photo', fill: false},
+				});
+			}else
+				alert("platform not compatible");
+				
+			 <!-- window.addEventListener("resize", trylive_resize); -->
+		}
+		
+		function onTryLiveNotify(message, data) {
+			console.log('onNotify', message, data);
+			if(message=="initializationFinished"){
+				onInitializationFinished(data);
+			}
+			else if(message=="assetsLoadingStatusChanged"){
+				if(data.status=="loaded"){
+					current_asset = data.reference;
+				}
+			}
+		}
+		
+		function onInitializationFinished(status) {
+			//alert("onInitializationFinished: ", status);
+			console.log ("XXXXXXXXXXXXXXXXXXX onInitializationFinished XXXXXXXXXXXXXXXXXXX", status);
+			document.getElementById('photo_input').addEventListener('change', selectLocalPicture, false);
+			document.getElementById("photo_input").disabled = false;
+			TryLive.getCatalogContent({}, onGetCatalogContent);
+			TryLive.setPupillaryDistance({distance: 65}, null);
+		}
+		
+		function displayLoading(){
+			document.getElementById("loading_info").style.visibility = "visible";
+			document.getElementById("spinning_wheel").style.visibility = "visible";
+			document.getElementById("white_screen").style.visibility = "visible";
+		}
+		
+		function hideLoading(){
+			document.getElementById("loading_info").style.visibility = "hidden";
+			document.getElementById("spinning_wheel").style.visibility = "hidden";
+			document.getElementById("white_screen").style.visibility = "hidden";
+		}
+			
+		var AssetArray = new Array();
+		function onGetCatalogContent(status, param){
+		
+			var NbFrames = param.hits.hits.length;
+			<!-- if(NbFrames>10) -->
+				<!-- NbFrames=10; -->
+				
+			console.log("loading "+NbFrames+" frames");
+				
+			for(i=0; i<NbFrames; i++){
+				var price_currency =  price_currency =  param.hits.hits[i]._source.tags.price + param.hits.hits[i]._source.price.currency_iso;
+				AssetArray.push({reference: param.hits.hits[i]._source.reference , model: param.hits.hits[i]._source.model, 
+					price:  price_currency });
+			}
+			
+			console.log("catalogue loaded");
+			hideLoading();
+		}
+		
+		function selectLocalPicture(arg){
+			if (window.File && window.FileReader && window.FileList && window.Blob)
+			{
+				<!-- displayLoading(); -->
+				// hide portrait and photo band ================================
+				document.getElementById("portrait").style = "display: none";
+				document.getElementById("photo-band").style = "display: none";
+				// ==============================================================
+				LoadPicture(arg.target.files[0]);
+			}
+			else
+			{
+				alert('The File APIs are not fully supported in this browser.');
+			}
+		}
+
+		function setCapturedPicture(){
+			document.getElementById("portrait").style = "display: none";
+			document.getElementById("photo-band").style = "display: none";
+			document.getElementById("grid").style = "display: block";
+			document.getElementById("white_bg").style = "display: block";
+			document.getElementById("player-widget").style = "display: none";
+			document.getElementById("canvas").style = "display:none";
+			document.getElementById("face_overlay").style = "display:none";
+			document.getElementById("scroll_band").style = "display: block";
+			document.addEventListener('scroll', function hideScrollBand(){
+				document.getElementById("scroll_band").style = "display: none";
+				document.removeEventListener('scroll', hideScrollBand);
+				console.log("hideScrollBand");
+			}); 
+			LoadPicture(canvas.toDataURL());
+		}
+		
+		function LoadPicture(file_obj){
+			console.log("LoadPicture");
+			displayLoading();
+	
+			TryLive.loadPhoto({	file: file_obj}, function (status, param) {
+				<!-- hideLoading(); -->
+				if(param.status == 'success'){
+					console.log("Image loaded");
+					FireUp();
+				}
+				else
+					console.error("Image not successfully loaded because ",status, param);
+			});
+		}
+		
+		async function FireUp(){
+			for(i=-1; i<AssetArray.length-1; i++){
+				await LoadNextFrame();
+				console.log("loading frame #",current_index);
+				wait(200); //unit is ms				
+				await takeSnapshot_Async();
+			}
+			<!-- hideLoading(); -->
+		}
+		
+		var current_index = -1;
+		async function LoadNextFrame(){
+			if(current_index<(AssetArray.length-1))
+				await Unload_Load(++current_index);
+			else
+				console.log("end of catalogue");
+		}
+		function loadAsset_Async(ref){
+			if(ref!=null){
+				return new Promise(function(resolve, reject) {TryLive.loadAsset({reference: ref, viewport: 1}, 
+					function(status, param){
+						if(param.status=="success"){
+							resolve([status, param]);
+						}
+						else{
+							console.log("loadAsset_Async " + param.reference + " REJECTED");
+							reject([status, param]);
+						}
+					}
+				)});
+			}
+			else
+				 throw Error('loadAsset_Async: ref is null');
+		}
+		
+		function unloadAsset_Async(ref){
+			if(ref!=null){
+				return new Promise(function(resolve, reject) {TryLive.unloadAsset({reference: ref, viewport: 1}, 
+						function(status, param){
+							if(param.status=="success"){
+								<!-- console.log(param.reference + " unloaded"); -->
+								resolve([status, param]);
+							}
+							else{
+								console.log("unloadAsset_Async " + param.reference + " REJECTED");
+								reject([status, param]);
+							}
+						}
+				)});
+			}
+			else
+				 throw Error('unloadAsset_Async: ref is null');
+		}
+		
+		async function Unload_Load(i){
+		if(i>=0){
+			if(current_asset!=AssetArray[i].reference){
+				if(current_asset!="null" && current_asset!="none"){
+					try {
+						const wait2 = unloadAsset_Async(current_asset);
+						await wait2;
+					} catch(e) {
+						console.log(e);
+					}
+				} else {
+					console.log("asset is NULL, no unload required");
+				}
+				
+				try {
+					current_index = i;
+					
+					const wait4 = loadAsset_Async(AssetArray[i].reference);
+					await wait4;
+				} catch(e) {
+					console.log(e);
+				}
+			} else {
+				console.log("asset already loaded");
+			}				
+		}
+	}	
+
+		async function takeSnapshot_Async() {
+			return new Promise(function(resolve, reject) {TryLive.takeSnapshot({}, function(status, param){
+				document.getElementById("img_snapshot"+current_index).src = param.image;
+				document.getElementById("img_text"+current_index).innerHTML = AssetArray[current_index].model + "<br />" + AssetArray[current_index].price;
+				document.getElementById("img_share"+current_index).style = "display: block";
+				if(current_index==0)console.log(param.image);
+				//document.getElementById("img_like"+current_index).style = "display: block";
+				document.getElementById("img_link"+current_index).href = 'mailto:acepbucy@gmail.com?subject=SMS&body=<img src='+param.image+'></img>';
+				
+				resolve([status, param]); 
+				}
+			) });
+		}
+				
+		</script>
+	</head>
+<body>
+	<div id="container">
+		<div id="header" style="display: none">
+        <!-- <div id="header"> -->
+			<img class="header" src="img/acep_logo.png"/>
+			<p id="header_text">La Technologie au service des opticiens</p>
+		</div>
+		<div id="videoContainer">
+			<video id="videoElement" playsinline="" autoplay="true"></video>
+		</div>
+		<!-- <button style=" position:absolute; left: 0; z-index: 200;">Take snapshot</button> -->
+		<canvas id="canvas" style="position:absolute; left: 0; width: 100%; height: auto"></canvas>
+
+		<img id="face_overlay" src="img/face_overlay50.png" width="100%" style="display: none;"/>
+
+		<img id="portrait" class="portrait" src="img/portrait2.jpg" />
+		<div class="white_bg" id="white_bg" style="display: none"></div>
+		<!-- <input type="file" id="photo_input" name="image" accept="image/*" disabled> -->
+		<!-- <input type="file" id="photo_input" name="webcam" accept=""image/*;capture=camera"> -->
+
+		<div id="player-widget" class="rendered"> <!-- to fix -->
+
+			<div class="loading" id="loading_info">
+				<div class="spinning_wheel" id="spinning_wheel">
+					<img src="img/loading.svg">
+				</div>
+				<div class="asset_spinning_wheel" id="asset_spinning_wheel">
+					<img src="img/loader.png" alt="asset_spinning_wheel" height="auto" width="100vw">
+				</div>
+				<div class="white_screen" id="white_screen" style="display: none"></div>
+			</div>
+			<div id="context" style="display: none; width:1280px; height:720px; min-width:50%; min-height:480px">
+				<iframe class="trylive" allow="camera" width="720" scrolling="NO" height="1280" frameborder="0" id="myVTO"></iframe>
+			</div>
+		</div>
+
+		
+		<div class="grid" id="grid" style="display: none">
+
+			<div class="row"> 
+			  <div class="spacing col-lg-6 col-sm-6 col-xs-6" >
+					  <img id="img_snapshot0" class="img_snapshot">
+			  		  <div id="img_text0" class="img_text"></div>
+					  <a id="img_link0" href=""><img id="img_share0" class="img_share" src="img/button_share.png"></a>
+					  <!-- <img id="img_share0" class="img_share" src="img/button_share.png"> -->
+					  <!-- <img id="img_like0" class="img_like" src="img/button_like_off.png"> -->
+			  </div>
+			  <div class="spacing col-lg-6 col-sm-6 col-xs-6">
+					  <img id="img_snapshot1" class="img_snapshot">
+			  		  <div id="img_text1" class="img_text"></div>
+					  <a id="img_link1" href=""><img id="img_share1" class="img_share" src="img/button_share.png"></a>
+					  <!-- <img id="img_share1" class="img_share" src="img/button_share.png"> -->
+					  <!-- <img id="img_like1" class="img_like" src="img/button_like_off.png"> -->
+			  </div> 
+			</div>
+
+			<div class="row"> 
+			  <div class="spacing col-lg-6 col-sm-6 col-xs-6">
+					  <img id="img_snapshot2" class="img_snapshot">
+			  		  <div id="img_text2" class="img_text"></div>
+					  <a id="img_link2" href=""><img id="img_share2" class="img_share" src="img/button_share.png"></a>
+					  <!-- <img id="img_share2" class="img_share" src="img/button_share.png"> -->
+					  <!-- <img id="img_like2" class="img_like" src="img/button_like_off.png"> -->
+			  </div>
+			  <div class="spacing col-lg-6 col-sm-6 col-xs-6">
+					  <img id="img_snapshot3" class="img_snapshot">
+			  		  <div id="img_text3" class="img_text"></div>
+					  <a id="img_link3" href=""><img id="img_share3" class="img_share" src="img/button_share.png"></a>
+					  <!-- <img id="img_share3" class="img_share" src="img/button_share.png"> -->
+					  <!-- <img id="img_like3" class="img_like" src="img/button_like_off.png"> -->
+			  </div> 
+			</div>
+
+			<div class="row"> 
+			  <div class="spacing col-lg-6 col-sm-6 col-xs-6">
+					  <img id="img_snapshot4" class="img_snapshot">
+			  		  <div id="img_text4" class="img_text"></div>
+					  <a id="img_link4" href=""><img id="img_share4" class="img_share" src="img/button_share.png"></a>
+					  <!-- <img id="img_share4" class="img_share" src="img/button_share.png"> -->
+					  <!-- <img id="img_like4" class="img_like" src="img/button_like_off.png"> -->
+			  </div> 
+			  <div class="spacing col-lg-6 col-sm-6 col-xs-6">
+					  <img id="img_snapshot5" class="img_snapshot">
+			  		  <div id="img_text5" class="img_text"></div>
+					  <a id="img_link5" href=""><img id="img_share5" class="img_share" src="img/button_share.png"></a>
+					  <!-- <img id="img_share5" class="img_share" src="img/button_share.png"> -->
+					  <!-- <img id="img_like5" class="img_like" src="img/button_like_off.png"> -->
+			  </div> 
+			</div>
+
+			<div class="row"> 
+			  <div class="spacing col-lg-6 col-sm-6 col-xs-6">
+					  <img id="img_snapshot6" class="img_snapshot">
+			  		  <div id="img_text6" class="img_text"></div>
+					  <a id="img_link6" href=""><img id="img_share6" class="img_share" src="img/button_share.png"></a>
+					  <!-- <img id="img_share6" class="img_share" src="img/button_share.png"> -->
+					  <!-- <img id="img_like6" class="img_like" src="img/button_like_off.png"> -->
+			  </div>
+			  <div class="spacing col-lg-6 col-sm-6 col-xs-6">
+					  <img id="img_snapshot7" class="img_snapshot">
+			  		  <div id="img_text7" class="img_text"></div>
+					  <a id="img_link7" href="/"><img id="img_share7" class="img_share" src="img/button_share.png"></a>
+					  <!-- <img id="img_share7" class="img_share" src="img/button_share.png"> -->
+					  <!-- <img id="img_like7" class="img_like" src="img/button_like_off.png"> -->
+			  </div> 
+			</div>
+
+		</div>
+
+		<!-- Scroll band -->
+		<div id="scroll_band" style="display:none">
+			<img src="img/scroll_band.png" width="100vw" />
+		</div>
+
+		<!-- Bottom camera button overlay -->
+		<div id="photo-band">
+			<label for="photo_input">
+				<img class="camera-btn" src="img/camera_button.png" />
+			</label>
+            <!-- <input id="photo_input" type="file" name="image" accept="image/*;" capture="camera" disabled /> -->
+           	<button id="photo_input" disabled/>
+			<!-- <button id="photo_input"></button> -->
+
+		</div>
+	</div>
+
+</body>		
+<script type="text/javascript" src="js/video.js"></script>
+<script src="https://webrtc.github.io/adapter/adapter-latest.js"></script>
+</html>
